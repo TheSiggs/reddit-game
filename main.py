@@ -17,7 +17,7 @@ canvas_height = 720
 
 # Create the screen directly with canvas dimensions
 screen = pygame.display.set_mode((canvas_width, canvas_height))
-pygame.display.set_caption("Bouncing Music")
+pygame.display.set_caption("Bouncing Balls")
 
 # Ball settings
 ball_radius = 20
@@ -43,7 +43,7 @@ last_time = time.time()  # Record the starting time
 if ENV == "test":
     interval = 1  # Interval in seconds
 else:
-    interval = 60  # Interval in seconds
+    interval = 10  # Interval in seconds
 
 font = pygame.font.Font(None, 36)  # You can replace None with a font path
 
@@ -75,7 +75,6 @@ def random_color():
 def load_themes():
     with open('themes.json', 'r') as file:
         themes = json.load(file)
-
     return themes
 
 
@@ -100,7 +99,7 @@ segment_colors = theme["color_palette"]
 color_palette = theme["color_palette"]
 num_segments = len(theme["sounds"])
 
-text = current_theme.split("_")[0]
+text = ""
 text_surface = font.render(text, True, (255, 255, 255))
 text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
@@ -118,14 +117,13 @@ while True:
     if current_time - last_time >= interval:
         theme = next(theme_generator)
         current_theme = theme
-        print(f"switching to theme {theme}")
         theme = themes[theme]
         segment_sounds = theme["sounds"]
         segment_colors = theme["color_palette"]
         color_palette = theme["color_palette"]
         num_segments = len(theme["sounds"])
 
-        text = theme["name"]
+        text = ""
         text_surface = font.render(text, True, (255, 255, 255))
         text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
