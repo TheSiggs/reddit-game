@@ -69,37 +69,50 @@ def draw_rotating_segmented_circle(surface, center, outer_radius, inner_radius, 
 
 
 def random_color():
-    return [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
+    return [random.randint(2, 255), random.randint(2, 255), random.randint(2, 255)]
 
 
-def load_themes():
-    with open('themes.json', 'r') as file:
-        themes = json.load(file)
-    return themes
+def get_segments():
+    return random.randint(5, 20)
 
 
-def new_theme(themes):
-    if ENV == "test":
-        for element in themes:
-            yield element
-    else:
-        while True:  # Infinite generator
-            yield random.choice(themes)
+def shape_name(sides: int):
+    shapes = {
+        '5': "Pentagon",
+        '6': "Hexagon",
+        '7': "Heptagon",
+        '8': "Octagon",
+        '9': "Nonnagon or Enneagon",
+        '10': "Decagon",
+        '11': "Hendecagon or Undecagon",
+        '12': "Dodecagon",
+        '13': "Tridecagon or Triskaidecagon",
+        '14': "Tetradecagon",
+        '15': "Pentadecagon",
+        '16': "Hexadecagon",
+        '17': "Heptadecagon",
+        '18': "Octadecagon",
+        '19': "Enneadecagon or Nonadecagon",
+        '20': "Icosagon",
+        '21': "Icosikaihenagon",
+        '22': "Icosikaidigon",
+        '23': "Icosikaitrigon",
+        '24': "Icosikaitetragon",
+        '25': "Icosikaipentagon",
+        '26': "Icosikaihexagon",
+        '27': "Icosikaiheptagon",
+        '28': "Icosikaioctagon",
+        '29': "Icosikaienneagon",
+        '30': "Triacontagon",
+    }
+    return shapes[f'{sides}']
 
 
-# initial startup
-themes = load_themes()
-theme_generator = new_theme(list(themes.keys()))
+num_segments = get_segments()
+segment_colors = [random_color() for _ in range(num_segments)]
 
-theme = next(theme_generator)
-current_theme = theme
-theme = themes[theme]
-segment_sounds = theme["sounds"]
-segment_colors = theme["color_palette"]
-color_palette = theme["color_palette"]
-num_segments = len(theme["sounds"])
-
-text = ""
+# Prints Text
+text = shape_name(num_segments)
 text_surface = font.render(text, True, (255, 255, 255))
 text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
@@ -115,15 +128,11 @@ while True:
     current_time = time.time()
 
     if current_time - last_time >= interval:
-        theme = next(theme_generator)
-        current_theme = theme
-        theme = themes[theme]
-        segment_sounds = theme["sounds"]
-        segment_colors = theme["color_palette"]
-        color_palette = theme["color_palette"]
-        num_segments = len(theme["sounds"])
+        num_segments = get_segments()
+        segment_colors = [random_color() for _ in range(num_segments)]
 
-        text = ""
+        # Prints Text
+        text = shape_name(num_segments)
         text_surface = font.render(text, True, (255, 255, 255))
         text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
