@@ -1,5 +1,7 @@
 import pygame
 import io
+import unicodedata
+import requests
 import sys
 import random
 import math
@@ -19,6 +21,10 @@ canvas_height = 720
 screen = pygame.display.set_mode((canvas_width, canvas_height))
 pygame.display.set_caption("Bouncing Balls")
 clock = pygame.time.Clock()
+
+pygame.mixer.music.load("background.mp3")  # Replace with your music file path
+pygame.mixer.music.set_volume(0.1)  # Set volume (0.0 to 1.0)
+pygame.mixer.music.play(loops=-1)  # Play indefinitely (-1 for infinite loop)
 
 # Ball settings
 ball_radius = 20
@@ -49,24 +55,68 @@ else:
 font = pygame.font.Font(None, 36)  # You can replace None with a font path
 
 
-def synthesize_speech(text):
+def split_text_into_chunks(text, max_bytes=5000):
+    """Split text into chunks of up to max_bytes."""
+    chunks = []
+    current_chunk = ""
+    for word in text.split():
+        # Check if adding the next word exceeds the byte limit
+        if len(current_chunk.encode("utf-8")) + len(word.encode("utf-8")) + 1 > max_bytes:
+            chunks.append(current_chunk.strip())
+            current_chunk = word
+        else:
+            current_chunk += " " + word
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    return chunks
+
+
+def synthesize_chunks_to_audio_file(text, output_file):
+    """Generate audio for long text by chunking and concatenating results."""
+    chunks = split_text_into_chunks(text)
+    print(f"Text split into {len(chunks)} chunks.")
+
+    # Create an in-memory buffer to concatenate the audio
     client = texttospeech.TextToSpeechClient()
-    input_text = texttospeech.SynthesisInput(text=text)
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
-        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-    )
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3
-    )
+    audio_data = io.BytesIO()
 
-    response = client.synthesize_speech(
-        input=input_text, voice=voice, audio_config=audio_config
-    )
+    for i, chunk in enumerate(chunks):
+        print(f"Processing chunk {i + 1}/{len(chunks)}...")
 
-    return io.BytesIO(response.audio_content), text.split()
+        # Set the text input
+        input_text = texttospeech.SynthesisInput(text=chunk)
 
-# Function to draw a filled segmented circle with rotation
+        # Set the voice parameters
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="en-US",
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
+
+        # Set the audio configuration
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        # Perform the text-to-speech request
+        response = client.synthesize_speech(
+            input=input_text,
+            voice=voice,
+            audio_config=audio_config
+        )
+
+        # Append the audio content to the buffer
+        audio_data.write(response.audio_content)
+
+    # Write the concatenated audio to a file
+    with open(output_file, "wb") as out:
+        out.write(audio_data.getvalue())
+        print(f"Audio content written to {output_file}")
+
+
+def synthesize_speech(text):
+    output_file = "tts_audio.mp3"
+    synthesize_chunks_to_audio_file(text, output_file)
+    return output_file, text.split()
 
 
 def draw_rotating_segmented_circle(surface, center, outer_radius, inner_radius, num_segments, colors, rotation_angle):
@@ -128,6 +178,65 @@ def shape_name(sides: int):
     return shapes[f'{sides}']
 
 
+def get_content(subreddit):
+    for i in range(100):
+        response = requests.get(subreddit['link'])
+        if response.status_code == 200:
+            posts = response.json()['data']['children'][:subreddit['posts']]
+            content = []
+            showTitle = subreddit['showTitle']
+            showBody = subreddit['showBody']
+            postsNo = subreddit['posts']
+            title = unicodedata.normalize('NFC', posts[0]['data']['title']).encode('ascii', 'ignore').decode(
+                'ascii')
+            if postsNo > 1:
+                for post in posts:
+                    if showTitle:
+                        text = unicodedata.normalize('NFC', post['data']['title']).encode('ascii', 'ignore').decode(
+                            'ascii')
+                        content.append(text)
+                    if showBody:
+                        bodyText = post['data']['selftext']
+                        bodyText = unicodedata.normalize('NFC', bodyText).encode('ascii', 'ignore').decode('ascii')
+                        words = bodyText.split('. ')
+                        for chunk in words:
+                            content.append(chunk + '. ')
+            else:
+                post = posts[0]
+                if showTitle:
+                    text = unicodedata.normalize('NFC', post['data']['title']).encode('ascii', 'ignore').decode(
+                        'ascii')
+                    content.append(text + '.')
+                if showBody:
+                    bodyText = post['data']['selftext']
+                    bodyText = unicodedata.normalize('NFC', bodyText).encode('ascii', 'ignore').decode('ascii')
+                    bodyText = bodyText.replace('\n\r', '', -1)
+                    bodyText = bodyText.replace('\n', ' ', -1)
+                    bodyText = bodyText.replace('\r', '', -1)
+                    bodyText = bodyText.replace('."', '.". ', -1)
+                    bodyText = bodyText.replace('?"', '?". ', -1)
+                    words = bodyText.split('. ')
+                    for chunk in words:
+                        content.append(chunk + '. ')
+            return content, title
+        elif response.status_code == 429:
+            print(f"Too many requests. Retrying in {2} seconds...")
+            time.sleep(2)
+        else:
+            print("Failed to make request after 100 attempts.")
+
+
+def write_text_to_file(text):
+    with open("tts_audio.txt", 'w') as f:
+        f.write(text)
+
+
+def read_text_from_file():
+    with open("tts_audio.txt", 'r') as f:
+        content = f.read()
+    return content
+
+
 num_segments = get_segments()
 segment_colors = [random_color() for _ in range(num_segments)]
 
@@ -137,16 +246,30 @@ text_surface = font.render(text, True, (255, 255, 255))
 text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
 # TTS
-text_to_speak = "This is an example where we are trying to show five words at a time and wrap the text neatly to fit inside a rectangular area."
-audio_data, subtitles = synthesize_speech(text_to_speak)
-max_words__per_line = 5
+subreddit = {
+    "name": "Am I The Asshole",
+    "subreddit": "r/AmItheAsshole",
+    "link": "https://www.reddit.com/r/AmItheAsshole/top/.json?limit=100",
+    "posts": 100,
+    "showTitle": True,
+    "showBody": True,
+    "addNameToTitle": False,
+}
 
-# Load audio data into Pygame mixer
+# content, title = get_content(subreddit)
+content = read_text_from_file()
+text_to_speak = "".join(content)
+# audio_data, subtitles = synthesize_speech(text_to_speak)
+audio_data = "tts_audio.mp3"
+subtitles = text_to_speak.split()
+
+max_words__per_line = 5
 pygame.mixer.init()
 sound = pygame.mixer.Sound(audio_data)
+sound.set_volume(0.5)
 sound.play()
 tts_start_time = time.time()
-word_duration = sound.get_length() / len(subtitles)  # Calculate duration per word
+word_duration = (sound.get_length() / len(subtitles)) - 0.02  # Calculate duration per word
 
 # Main loop
 while True:
@@ -158,13 +281,16 @@ while True:
 
     # Get the current time
     current_time = time.time()
-    tts_elapsed_time = time.time() - tts_start_time
+
+    tts_elapsed_time = (time.time() - tts_start_time) % sound.get_length()
 
     # TTS
     word_index = int(tts_elapsed_time / word_duration)
     if word_index < len(subtitles):
         current_word = " ".join(subtitles[word_index:word_index + max_words__per_line])
     else:
+        tts_start_time = time.time()
+        sound.play()
         current_word = ""  # Clear subtitles when audio ends
 
     subtitle_surface = font.render(current_word, True, (255, 255, 255))
@@ -237,3 +363,6 @@ while True:
     # Add a small delay to slow down the loop
     if ENV != "test":
         pygame.time.delay(10)
+
+pygame.mixer.music.stop()  # Stop the music when exiting
+
