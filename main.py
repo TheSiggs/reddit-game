@@ -1,10 +1,10 @@
 import pygame
-import json
+import io
 import sys
 import random
 import math
 import time
-
+from google.cloud import texttospeech
 
 ENV = "prod"
 
@@ -18,6 +18,7 @@ canvas_height = 720
 # Create the screen directly with canvas dimensions
 screen = pygame.display.set_mode((canvas_width, canvas_height))
 pygame.display.set_caption("Bouncing Balls")
+clock = pygame.time.Clock()
 
 # Ball settings
 ball_radius = 20
@@ -48,7 +49,26 @@ else:
 font = pygame.font.Font(None, 36)  # You can replace None with a font path
 
 
+def synthesize_speech(text):
+    client = texttospeech.TextToSpeechClient()
+    input_text = texttospeech.SynthesisInput(text=text)
+    voice = texttospeech.VoiceSelectionParams(
+        language_code="en-US",
+        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
+    )
+    audio_config = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.MP3
+    )
+
+    response = client.synthesize_speech(
+        input=input_text, voice=voice, audio_config=audio_config
+    )
+
+    return io.BytesIO(response.audio_content), text.split()
+
 # Function to draw a filled segmented circle with rotation
+
+
 def draw_rotating_segmented_circle(surface, center, outer_radius, inner_radius, num_segments, colors, rotation_angle):
     angle_per_segment = 360 / num_segments
     for i in range(num_segments):
@@ -116,6 +136,17 @@ text = shape_name(num_segments)
 text_surface = font.render(text, True, (255, 255, 255))
 text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
+# TTS
+text_to_speak = "Hello, welcome to the Google Cloud Text to Speech example without generating an audio file."
+audio_data, subtitles = synthesize_speech(text_to_speak)
+
+# Load audio data into Pygame mixer
+pygame.mixer.init()
+sound = pygame.mixer.Sound(audio_data)
+sound.play()
+tts_start_time = time.time()
+word_duration = sound.get_length() / len(subtitles)  # Calculate duration per word
+
 # Main loop
 while True:
     # Event handling
@@ -126,7 +157,19 @@ while True:
 
     # Get the current time
     current_time = time.time()
+    tts_elapsed_time = time.time() - tts_start_time
 
+    # TTS
+    word_index = int(tts_elapsed_time / word_duration)
+    if word_index < len(subtitles):
+        current_word = subtitles[word_index]
+    else:
+        current_word = ""  # Clear subtitles when audio ends
+
+    subtitle_surface = font.render(current_word, True, (255, 255, 255))
+    screen.blit(subtitle_surface, (400 - subtitle_surface.get_width() // 2, 300))
+
+    # New Shape
     if current_time - last_time >= interval:
         num_segments = get_segments()
         segment_colors = [random_color() for _ in range(num_segments)]
