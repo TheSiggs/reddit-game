@@ -7,6 +7,7 @@ import random
 import math
 import time
 from google.cloud import texttospeech
+from google.oauth2 import service_account
 
 ENV = "prod"
 
@@ -77,7 +78,8 @@ def synthesize_chunks_to_audio_file(text, output_file):
     print(f"Text split into {len(chunks)} chunks.")
 
     # Create an in-memory buffer to concatenate the audio
-    client = texttospeech.TextToSpeechClient()
+    credentials = service_account.Credentials.from_service_account_file("./google-tts-credentials.json")
+    client = texttospeech.TextToSpeechClient(credentials=credentials)
     audio_data = io.BytesIO()
 
     for i, chunk in enumerate(chunks):
@@ -256,20 +258,12 @@ subreddit = {
     "addNameToTitle": False,
 }
 
-# content, title = get_content(subreddit)
-content = read_text_from_file()
+content, title = get_content(subreddit)
 text_to_speak = "".join(content)
-# audio_data, subtitles = synthesize_speech(text_to_speak)
-audio_data = "tts_audio.mp3"
-subtitles = text_to_speak.split()
-
-max_words__per_line = 5
-pygame.mixer.init()
-sound = pygame.mixer.Sound(audio_data)
-sound.set_volume(0.5)
-sound.play()
-tts_start_time = time.time()
-word_duration = (sound.get_length() / len(subtitles)) - 0.02  # Calculate duration per word
+audio_data, subtitles = synthesize_speech(text_to_speak)
+tts = pygame.mixer.Sound(audio_data)
+tts.set_volume(0.5)
+tts.play(loops=-1)
 
 # Main loop
 while True:
@@ -281,19 +275,6 @@ while True:
 
     # Get the current time
     current_time = time.time()
-
-    tts_elapsed_time = (time.time() - tts_start_time) % sound.get_length()
-
-    # TTS
-    word_index = int(tts_elapsed_time / word_duration)
-    if word_index < len(subtitles):
-        current_word = " ".join(subtitles[word_index:word_index + max_words__per_line])
-    else:
-        tts_start_time = time.time()
-        sound.play()
-        current_word = ""  # Clear subtitles when audio ends
-
-    subtitle_surface = font.render(current_word, True, (255, 255, 255))
 
     # New Shape
     if current_time - last_time >= interval:
@@ -355,8 +336,6 @@ while True:
     # Draw the ball
     pygame.draw.circle(screen, ball_color, (int(ball_x), int(ball_y)), ball_radius)
 
-    screen.blit(subtitle_surface, (canvas_width // 8, canvas_height // 2))
-
     # Update the display
     pygame.display.flip()
 
@@ -365,4 +344,3 @@ while True:
         pygame.time.delay(10)
 
 pygame.mixer.music.stop()  # Stop the music when exiting
-
