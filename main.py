@@ -137,8 +137,9 @@ text_surface = font.render(text, True, (255, 255, 255))
 text_rect = text_surface.get_rect(center=(canvas_width // 2, text_surface.get_height() // 2))
 
 # TTS
-text_to_speak = "Hello, welcome to the Google Cloud Text to Speech example without generating an audio file."
+text_to_speak = "This is an example where we are trying to show five words at a time and wrap the text neatly to fit inside a rectangular area."
 audio_data, subtitles = synthesize_speech(text_to_speak)
+max_words__per_line = 5
 
 # Load audio data into Pygame mixer
 pygame.mixer.init()
@@ -162,12 +163,11 @@ while True:
     # TTS
     word_index = int(tts_elapsed_time / word_duration)
     if word_index < len(subtitles):
-        current_word = subtitles[word_index]
+        current_word = " ".join(subtitles[word_index:word_index + max_words__per_line])
     else:
         current_word = ""  # Clear subtitles when audio ends
 
     subtitle_surface = font.render(current_word, True, (255, 255, 255))
-    screen.blit(subtitle_surface, (400 - subtitle_surface.get_width() // 2, 300))
 
     # New Shape
     if current_time - last_time >= interval:
@@ -228,6 +228,8 @@ while True:
 
     # Draw the ball
     pygame.draw.circle(screen, ball_color, (int(ball_x), int(ball_y)), ball_radius)
+
+    screen.blit(subtitle_surface, (canvas_width // 8, canvas_height // 2))
 
     # Update the display
     pygame.display.flip()
